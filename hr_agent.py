@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Daily HR News Agent
-Fetches HR-related news and sends them via email using Google Gemini processing
+Fetches HR-related news and sends them via email using OpenAI processing
 """
 
 import os
@@ -54,7 +54,7 @@ def get_naver_news(keyword: str, display: int = 10) -> list:
 
 def process_news_with_ai(news_items: list) -> str:
     """
-    Process news items with Google Gemini to generate summary
+    Process news items with OpenAI to generate summary
     
     Args:
         news_items: List of news items from Naver
@@ -199,7 +199,7 @@ def main():
     print(f"Found {len(news_items)} news items")
     
     # Process with AI
-    print("\n2. Processing news with Google Gemini...")
+    print("\n2. Processing news with OpenAI...")
     summary = process_news_with_ai(news_items)
     
     if not summary:
