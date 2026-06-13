@@ -8,7 +8,7 @@ import os
 import sys
 import requests
 import smtplib
-import google.generativeai as genai
+from openai import OpenAI
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -62,21 +62,13 @@ def process_news_with_ai(news_items: list) -> str:
     Returns:
         Processed summary text
     """
-    api_key = os.getenv("GOOGLE_API_KEY")
-    
-    if not api_key:
-        print("Error: GOOGLE_API_KEY not set")
-        return ""
-    
-    genai.configure(api_key=api_key)
+    api_key = os.getenv("OPENAI_API_KEY")
 
-    # Candidate models to try (order = preferred -> fallback)
-    candidate_models = [
-        "gemini-1.5-flash-002",
-        "gemini-1.5-flash",
-        "gemini-1.5-mini",
-        "text-bison-001",
-    ]
+    if not api_key:
+        print("Error: OPENAI_API_KEY not set")
+        return ""
+
+    client = OpenAI(api_key=api_key)
 
     # Format news for processing
     news_text = "\n".join([
@@ -84,31 +76,28 @@ def process_news_with_ai(news_items: list) -> str:
         for item in news_items
     ])
 
-    prompt = (
-        "You are an HR news summarizer. Please summarize the following HR-related news in Korean, "
-        "highlighting key insights and trends. Make the summary clear and well-organized.\n\n"
-        f"HR News:\n{news_text}\n\nPlease provide a comprehensive summary of the news."
-    )
+    messages = [
+        {
+            "role": "system",
+            "content": "You are an HR news summarizer. Summarize the following HR-related news in Korean, highlighting key insights and trends."
+        },
+        {
+            "role": "user",
+            "content": f"Please summarize the following HR news:\n\n{news_text}"
+        }
+    ]
 
-    last_err = None
-    for mname in candidate_models:
-        try:
-            print(f"Trying model: {mname}")
-            model = genai.GenerativeModel(mname)
-            response = model.generate_content(prompt)
-            # Some clients return .text, others return .content; handle both
-            if hasattr(response, "text"):
-                return response.text
-            if hasattr(response, "content"):
-                return response.content
-            # Fallback: string conversion
-            return str(response)
-        except Exception as e:
-            print(f"Model {mname} failed: {e!r}")
-            last_err = e
-
-    print(f"Error processing with Google Gemini: all candidate models failed. Last error: {last_err!r}")
-    return ""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            temperature=0.7,
+            max_tokens=1500,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"Error processing with OpenAI: {e}")
+        return ""
 
 
 def send_email(subject: str, body: str) -> bool:
