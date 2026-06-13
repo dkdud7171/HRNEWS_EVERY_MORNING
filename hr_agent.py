@@ -168,16 +168,25 @@ def send_email(subject: str, body: str) -> bool:
         part = MIMEText(body, "html", "utf-8")
         msg.attach(part)
         
-        # Send email
+        # Send email with verbose SMTP debug output
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.set_debuglevel(1)
             server.starttls()
-            server.login(sender, password)
+            try:
+                server.login(sender, password)
+            except smtplib.SMTPAuthenticationError as auth_err:
+                print("SMTP authentication failed. Check EMAIL_SENDER and EMAIL_PASSWORD (app password if 2FA enabled).")
+                print("Authentication error:", auth_err)
+                traceback.print_exc()
+                return False
+
             server.sendmail(sender, receiver, msg.as_string())
-        
+
         print(f"Email sent successfully to {receiver}")
         return True
     except Exception as e:
         print(f"Error sending email: {e}")
+        traceback.print_exc()
         return False
 
 
