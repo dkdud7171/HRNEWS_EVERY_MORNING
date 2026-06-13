@@ -69,7 +69,8 @@ def process_news_with_ai(news_items: list) -> str:
         return ""
     
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    # Use the more specific model name; some API keys require the full suffix
+    model = genai.GenerativeModel("gemini-1.5-flash-002")
     
     # Format news for processing
     news_text = "\n".join([
@@ -88,7 +89,18 @@ Please provide a comprehensive summary of the news."""
         )
         return response.text
     except Exception as e:
-        print(f"Error processing with Google Gemini: {e}")
+        print(f"Error processing with Google Gemini: {e!r}")
+        # If model not found, suggest listing available models in CI logs
+        try:
+            print("Attempting to list available models for this key...")
+            import google.genai as genai_new
+            client = genai_new.Client(api_key=api_key)
+            models = client.models.list()
+            print("Available models:")
+            for m in models:
+                print(m)
+        except Exception as list_e:
+            print(f"Could not list models: {list_e!r}")
         return ""
 
 
