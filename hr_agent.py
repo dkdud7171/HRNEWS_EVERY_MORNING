@@ -69,39 +69,46 @@ def process_news_with_ai(news_items: list) -> str:
         return ""
     
     genai.configure(api_key=api_key)
-    # Use the more specific model name; some API keys require the full suffix
-    model = genai.GenerativeModel("gemini-1.5-flash-002")
-    
+
+    # Candidate models to try (order = preferred -> fallback)
+    candidate_models = [
+        "gemini-1.5-flash-002",
+        "gemini-1.5-flash",
+        "gemini-1.5-mini",
+        "text-bison-001",
+    ]
+
     # Format news for processing
     news_text = "\n".join([
-        f"- {item['title']}: {item['description']}"
+        f"- {item['title']}: {item.get('description','') or item.get('title','')}"
         for item in news_items
     ])
-    
-    try:
-        response = model.generate_content(
-            f"""You are an HR news summarizer. Please summarize the following HR-related news in Korean, highlighting key insights and trends. Make the summary clear and well-organized.
 
-HR News:
-{news_text}
+    prompt = (
+        "You are an HR news summarizer. Please summarize the following HR-related news in Korean, "
+        "highlighting key insights and trends. Make the summary clear and well-organized.\n\n"
+        f"HR News:\n{news_text}\n\nPlease provide a comprehensive summary of the news."
+    )
 
-Please provide a comprehensive summary of the news."""
-        )
-        return response.text
-    except Exception as e:
-        print(f"Error processing with Google Gemini: {e!r}")
-        # If model not found, suggest listing available models in CI logs
+    last_err = None
+    for mname in candidate_models:
         try:
-            print("Attempting to list available models for this key...")
-            import google.genai as genai_new
-            client = genai_new.Client(api_key=api_key)
-            models = client.models.list()
-            print("Available models:")
-            for m in models:
-                print(m)
-        except Exception as list_e:
-            print(f"Could not list models: {list_e!r}")
-        return ""
+            print(f"Trying model: {mname}")
+            model = genai.GenerativeModel(mname)
+            response = model.generate_content(prompt)
+            # Some clients return .text, others return .content; handle both
+            if hasattr(response, "text"):
+                return response.text
+            if hasattr(response, "content"):
+                return response.content
+            # Fallback: string conversion
+            return str(response)
+        except Exception as e:
+            print(f"Model {mname} failed: {e!r}")
+            last_err = e
+
+    print(f"Error processing with Google Gemini: all candidate models failed. Last error: {last_err!r}")
+    return ""
 
 
 def send_email(subject: str, body: str) -> bool:
