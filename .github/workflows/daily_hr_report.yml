@@ -2,7 +2,7 @@ name: Daily HR News Agent
 
 on:
   schedule:
-    - cron: '10 30 * * *' # UTC 10:30
+    - cron: '10 10 * * *' # UTC 10:10 (한국 시간 오후 7시 10분)
   workflow_dispatch: # 수동 실행 버튼
 
 jobs:
