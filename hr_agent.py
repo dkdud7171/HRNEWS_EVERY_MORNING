@@ -6,6 +6,8 @@ Fetches HR-related news and sends them via email using OpenAI processing
 
 import os
 import sys
+import time
+import traceback
 import requests
 import smtplib
 from openai import OpenAI
@@ -87,17 +89,54 @@ def process_news_with_ai(news_items: list) -> str:
         }
     ]
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            temperature=0.7,
-            max_tokens=1500,
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        print(f"Error processing with OpenAI: {e}")
-        return ""
+    # Retry with exponential backoff for transient errors (rate limits, network)
+    max_retries = 3
+    last_exc = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=1000,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            last_exc = e
+            err_text = str(e)
+            print(f"Attempt {attempt} - OpenAI call failed: {err_text}")
+            # If it's clearly a quota/billing issue, stop retrying early
+            if "insufficient_quota" in err_text or "quota" in err_text:
+                print("Insufficient quota or billing issue detected. Check your OpenAI plan and billing settings.")
+                break
+            if attempt < max_retries:
+                sleep_sec = 2 ** (attempt - 1)
+                print(f"Retrying in {sleep_sec}s...")
+                time.sleep(sleep_sec)
+            else:
+                print("Max retries reached.")
+
+    print("All OpenAI attempts failed. Falling back to a local summary.")
+    print("Last exception:\n", traceback.format_exception_only(type(last_exc), last_exc))
+    return local_fallback_summary(news_items)
+
+
+def local_fallback_summary(news_items: list) -> str:
+    """
+    Simple local summarizer used when the AI provider is unavailable.
+    Returns a concise bullet list of titles + first sentence of description in Korean.
+    """
+    bullets = []
+    for item in news_items:
+        title = item.get("title", "(제목 없음)")
+        desc = item.get("description", "") or ""
+        # take up to first 200 chars to keep it short
+        short = desc.replace('\n', ' ').strip()
+        if len(short) > 200:
+            short = short[:197].rsplit(' ', 1)[0] + '...'
+        bullets.append(f"- {title}: {short}")
+    header = "(자동 폴백 요약) 아래는 원문 제목과 간단한 설명입니다:\n\n"
+    return header + "\n".join(bullets)
 
 
 def send_email(subject: str, body: str) -> bool:
