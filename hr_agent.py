@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
 Daily HR News Agent
-Fetches HR-related news and sends them via email using OpenAI processing
+Fetches HR-related news and sends them via email using Google Gemini processing
 """
 
 import os
 import sys
 import requests
 import smtplib
+import google.generativeai as genai
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from openai import OpenAI
 
 
 def get_naver_news(keyword: str, display: int = 10) -> list:
@@ -54,7 +54,7 @@ def get_naver_news(keyword: str, display: int = 10) -> list:
 
 def process_news_with_ai(news_items: list) -> str:
     """
-    Process news items with OpenAI to generate summary
+    Process news items with Google Gemini to generate summary
     
     Args:
         news_items: List of news items from Naver
@@ -62,13 +62,14 @@ def process_news_with_ai(news_items: list) -> str:
     Returns:
         Processed summary text
     """
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("GOOGLE_API_KEY")
     
     if not api_key:
-        print("Error: OPENAI_API_KEY not set")
+        print("Error: GOOGLE_API_KEY not set")
         return ""
     
-    client = OpenAI(api_key=api_key)
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-1.5-flash")
     
     # Format news for processing
     news_text = "\n".join([
@@ -77,24 +78,17 @@ def process_news_with_ai(news_items: list) -> str:
     ])
     
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are an HR news summarizer. Summarize the following HR-related news in Korean, highlighting key insights and trends."
-                },
-                {
-                    "role": "user",
-                    "content": f"Please summarize the following HR news:\n\n{news_text}"
-                }
-            ],
-            temperature=0.7,
-            max_tokens=1500,
+        response = model.generate_content(
+            f"""You are an HR news summarizer. Please summarize the following HR-related news in Korean, highlighting key insights and trends. Make the summary clear and well-organized.
+
+HR News:
+{news_text}
+
+Please provide a comprehensive summary of the news."""
         )
-        return response.choices[0].message.content
+        return response.text
     except Exception as e:
-        print(f"Error processing with OpenAI: {e}")
+        print(f"Error processing with Google Gemini: {e}")
         return ""
 
 
@@ -197,7 +191,7 @@ def main():
     print(f"Found {len(news_items)} news items")
     
     # Process with AI
-    print("\n2. Processing news with OpenAI...")
+    print("\n2. Processing news with Google Gemini...")
     summary = process_news_with_ai(news_items)
     
     if not summary:
